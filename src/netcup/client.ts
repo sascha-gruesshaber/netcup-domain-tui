@@ -19,6 +19,12 @@ function isSessionError(err: unknown): boolean {
   return text.includes('session');
 }
 
+/** listallDomains is only offered to reseller accounts (statuscode 4020). */
+export function isResellerOnlyError(err: unknown): boolean {
+  if (!(err instanceof NetcupApiError)) return false;
+  return err.statuscode === 4020 || /function not available/i.test(err.shortmessage);
+}
+
 function isNoRecordsError(err: unknown): boolean {
   if (!(err instanceof NetcupApiError)) return false;
   const text = `${err.shortmessage} ${err.longmessage ?? ''}`.toLowerCase();

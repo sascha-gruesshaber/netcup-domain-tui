@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { Frame } from '../components/Frame.js';
@@ -20,15 +20,23 @@ export function Domains({ domains, extraDomains, status, onOpen, onAddDomain, on
   const [draft, setDraft] = useState('');
   const all = [...new Set([...domains, ...extraDomains])].sort();
   const selected = all[Math.min(cursor, Math.max(all.length - 1, 0))];
+  const busy = status?.kind === 'busy';
+
+  // Nothing to select yet: jump straight into the add prompt once loading finished.
+  useEffect(() => {
+    if (all.length === 0 && !busy && status !== null) setAdding(true);
+  }, [all.length, busy, status]);
 
   useInput((input, key) => {
     if (adding) {
       if (key.escape) {
         setAdding(false);
         setDraft('');
+        if (all.length === 0) onQuit();
       }
       return;
     }
+    if (busy) return;
     if (input === 'q' || key.escape) return onQuit();
     if (input === 'r') return onRefresh();
     if (input === 'a') return setAdding(true);
@@ -50,11 +58,11 @@ export function Domains({ domains, extraDomains, status, onOpen, onAddDomain, on
       title="Domains"
       subtitle={`${all.length} domain${all.length === 1 ? '' : 's'}`}
       status={status}
-      help={adding ? 'Enter add · Esc cancel' : '↑↓ select · Enter open · a add domain manually · x remove manual domain · r refresh · q quit'}
+      help={adding ? (all.length === 0 ? 'Enter add · Esc quit' : 'Enter add · Esc cancel') : '↑↓ select · Enter open · a add domain · x remove domain · r refresh · q quit'}
     >
       <Box flexDirection="column" marginTop={1}>
-        {all.length === 0 && !adding ? (
-          <Text dimColor>No domains found. Press "a" to add a domain name by hand.</Text>
+        {all.length === 0 ? (
+          <Text dimColor>No domains yet. Type a domain name you manage at netcup, e.g. example.com.</Text>
         ) : null}
         {all.map((d, i) => {
           const active = i === cursor;

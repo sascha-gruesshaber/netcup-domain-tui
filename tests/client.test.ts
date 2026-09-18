@@ -1,6 +1,6 @@
 import { test, after, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { NetcupClient } from '../src/netcup/client.js';
+import { NetcupClient, isResellerOnlyError } from '../src/netcup/client.js';
 import { NetcupApiError } from '../src/netcup/types.js';
 import { startMockServer, SAMPLE_ZONES, type MockServer } from './mock-server.js';
 
@@ -79,4 +79,14 @@ test('logout clears the session and never throws', async () => {
   await client.logout();
   assert.equal(client.isLoggedIn, false);
   await client.logout();
+});
+
+test('listallDomains on a non-reseller account is recognisable', async () => {
+  const client = new NetcupClient(creds, { endpoint: server.url });
+  server.state.reseller = false;
+  try {
+    await assert.rejects(client.listDomains(), (err: unknown) => isResellerOnlyError(err));
+  } finally {
+    server.state.reseller = true;
+  }
 });

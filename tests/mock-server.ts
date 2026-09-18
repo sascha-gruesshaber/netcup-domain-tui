@@ -8,6 +8,8 @@ export interface MockState {
   requests: { action: string; param: Record<string, unknown> }[];
   /** When set, the next authenticated call fails with a session error once. */
   expireNext: boolean;
+  /** Real (non-reseller) accounts get error 4020 from listallDomains. */
+  reseller: boolean;
   nextId: number;
 }
 
@@ -18,7 +20,7 @@ export interface MockServer {
 }
 
 export async function startMockServer(seed: Record<string, Record<string, unknown>[]> = {}): Promise<MockServer> {
-  const state: MockState = { domains: structuredClone(seed), sessions: new Set(), requests: [], expireNext: false, nextId: 1000 };
+  const state: MockState = { domains: structuredClone(seed), sessions: new Set(), requests: [], expireNext: false, reseller: true, nextId: 1000 };
 
   const reply = (action: string, status: 'success' | 'error', code: number, short: string, data?: unknown, long?: string) => ({
     serverrequestid: 'srv',
@@ -57,6 +59,7 @@ export async function startMockServer(seed: Record<string, Record<string, unknow
           state.sessions.delete(String(param.apisessionid));
           return send(reply(action, 'success', 2000, 'Logout successful'));
         case 'listallDomains':
+          if (!state.reseller) return send(reply(action, 'error', 4020, 'Function not available', undefined, 'This function is available for resellers.'));
           return send(reply(action, 'success', 2000, 'ok', Object.keys(state.domains).map((domainname) => ({ domainname }))));
         case 'infoDnsZone':
           if (!(domain in state.domains)) return send(reply(action, 'error', 4013, 'Validation Error.', undefined, 'Domain not found.'));

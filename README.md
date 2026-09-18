@@ -54,11 +54,11 @@ export NETCUP_API_PASSWORD=...
 
 ![Domains view](docs/screenshots/domains.svg)
 
-The domain list comes from the API. If your API key is not allowed to list domains, press `a` and type a domain name; manually added domains are remembered in the config file and marked *(manual)*.
+netcup only lets **reseller** accounts list their domains through the API (error 4020 otherwise). For a regular account the app therefore asks you to type the domain names you manage; each one is checked against the API, remembered in the config file and marked *(manual)*. Press `a` to add more later and `x` to remove one.
 
 | Screen | Keys |
 | --- | --- |
-| Domains | `↑`/`↓` select · `Enter` open · `a` add domain manually · `x` remove manual domain · `r` refresh · `q` quit |
+| Domains | `↑`/`↓` select · `Enter` open · `a` add domain · `x` remove domain · `r` refresh · `q` quit |
 | Records | `↑`/`↓` select · `Enter`/`e` edit · `n` new · `c` copy · `d` delete · `/` filter · `r` refresh · `Esc` back · `q` quit |
 | Record form | `Tab`/`↑`/`↓` move between fields · `←`/`→` change type · `Enter` next field / save · `Esc` cancel |
 | Delete prompt | `y`/`Enter` confirm · `n`/`Esc` cancel |

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from 'ink';
-import { NetcupClient } from '../netcup/client.js';
+import { NetcupClient, isResellerOnlyError } from '../netcup/client.js';
 import type { Credentials, DnsRecord, DnsZone } from '../netcup/types.js';
 import { type AppConfig, saveConfig } from '../config.js';
 import { Setup } from './screens/Setup.js';
@@ -56,7 +56,11 @@ export function App({ config, configFile, createClient, persist = saveConfig }: 
       setStatus(list.length === 0 ? { kind: 'info', text: 'Logged in. The API did not return any domains; add one with "a".' } : { kind: 'info', text: `Loaded ${list.length} domain(s).` });
     } catch (err) {
       setDomains([]);
-      setStatus({ kind: 'error', text: `Could not list domains (${err instanceof Error ? err.message : err}). Add domains manually with "a".` });
+      if (isResellerOnlyError(err)) {
+        setStatus({ kind: 'info', text: 'Logged in. netcup lists domains via API only for reseller accounts, so add yours with "a" (they are remembered).' });
+      } else {
+        setStatus({ kind: 'error', text: `Could not list domains (${err instanceof Error ? err.message : err}). Add domains manually with "a".` });
+      }
     }
   }, []);
 
@@ -118,6 +122,24 @@ export function App({ config, configFile, createClient, persist = saveConfig }: 
     }
   };
 
+  const addDomain = async (domain: string) => {
+    const client = clientRef.current;
+    if (!client) return;
+    if (cfg.extraDomains.includes(domain) || domains.includes(domain)) {
+      setStatus({ kind: 'info', text: `${domain} is already in the list.` });
+      return;
+    }
+    setStatus({ kind: 'busy', text: `Checking ${domain}…` });
+    try {
+      await client.getZone(domain);
+    } catch (err) {
+      setStatus({ kind: 'error', text: `${domain}: ${err instanceof Error ? err.message : err}` });
+      return;
+    }
+    updateExtraDomains([...cfg.extraDomains, domain].sort());
+    setStatus({ kind: 'info', text: `Added ${domain}.` });
+  };
+
   const openDomain = (domain: string) => {
     setZone(null);
     setRecords([]);
@@ -171,7 +193,7 @@ export function App({ config, configFile, createClient, persist = saveConfig }: 
           extraDomains={cfg.extraDomains}
           status={status}
           onOpen={openDomain}
-          onAddDomain={(d) => updateExtraDomains([...new Set([...cfg.extraDomains, d])])}
+          onAddDomain={(d) => void addDomain(d)}
           onRemoveDomain={(d) => updateExtraDomains(cfg.extraDomains.filter((x) => x !== d))}
           onRefresh={() => void loadDomains()}
           onQuit={() => void quit()}

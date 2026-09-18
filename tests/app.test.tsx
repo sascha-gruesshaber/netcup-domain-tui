@@ -27,11 +27,11 @@ after(async () => {
   await server.close();
 });
 
-function mount() {
+function mount(extraDomains: string[] = []) {
   const saved: unknown[] = [];
   const ui = render(
     <App
-      config={{ credentials: creds, extraDomains: [] }}
+      config={{ credentials: creds, extraDomains }}
       configFile="/tmp/config.json"
       createClient={(c) => new NetcupClient(c, { endpoint: server.url })}
       persist={(cfg) => saved.push(cfg)}
@@ -98,4 +98,33 @@ test('validation blocks an A record with a bad address', async () => {
   await tick(50);
   assert.match(lastFrame()!, /A records need an IPv4 address/);
   unmount();
+});
+
+test('non-reseller accounts add domains by hand, verified against the API', async () => {
+  server.state.reseller = false;
+  try {
+    const { lastFrame, stdin, saved, unmount } = mount();
+    await tick();
+    assert.match(lastFrame()!, /only for reseller accounts/);
+    assert.match(lastFrame()!, /Domain name:/, 'add prompt opens automatically when the list is empty');
+
+    await press(stdin, ...'nope.example', ENTER);
+    await tick(80);
+    assert.match(lastFrame()!, /nope\.example: infoDnsZone/);
+    assert.equal(saved.length, 0, 'unknown domains are not stored');
+
+    // the prompt stays open while the list is empty, so just type the next name
+    await press(stdin, ...'example.org', ENTER);
+    await tick(80);
+    assert.match(lastFrame()!, /Added example\.org/);
+    assert.match(lastFrame()!, /example\.org\s+\(manual\)/);
+    assert.deepEqual((saved[0] as { extraDomains: string[] }).extraDomains, ['example.org']);
+
+    await press(stdin, ENTER);
+    await tick(80);
+    assert.match(lastFrame()!, /203\.0\.113\.20/);
+    unmount();
+  } finally {
+    server.state.reseller = true;
+  }
 });
