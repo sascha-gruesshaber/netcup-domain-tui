@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    name: Node bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: netcup-dns.mjs
+          path: dist/netcup-dns.mjs
+
+  binaries:
+    name: Binary (${{ matrix.artifact }})
+    needs: bundle
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: bun-darwin-arm64
+            artifact: netcup-dns-macos-arm64
+          - os: macos-latest
+            target: bun-darwin-x64
+            artifact: netcup-dns-macos-x64
+          - os: windows-latest
+            target: bun-windows-x64
+            artifact: netcup-dns-windows-x64.exe
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            artifact: netcup-dns-linux-x64
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: netcup-dns.mjs
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun build --compile --target=${{ matrix.target }} netcup-dns.mjs --outfile ${{ matrix.artifact }}
+      - name: Smoke test binary
+        # The x64 macOS binary cannot run on the arm64 runner without Rosetta; skip it there.
+        if: matrix.target != 'bun-darwin-x64'
+        shell: bash
+        run: ./${{ matrix.artifact }} --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Publish GitHub release
+    needs: binaries
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+      - name: Checksums
+        run: |
+          cd assets
+          find . -type f | sort | xargs sha256sum | sed 's#\./[^/]*/##' > ../SHA256SUMS.txt
+          cat ../SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            assets/**/*
+            SHA256SUMS.txt
